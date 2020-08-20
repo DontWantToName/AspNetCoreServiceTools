@@ -8,49 +8,65 @@ using System.Threading.Tasks;
 
 public static class AspNetCoreServiceTools
 {
-    /// <summary>
-    /// 注入服务
-    /// </summary>
-    /// <param name="services"></param>
-    /// <param name="dllName">实现接口项目名称</param>
-    /// <param name="transientNamespace">transient命名空间名称</param>
-    /// <param name="scopedNamespace">scoped命名空间名称</param>
-    /// <param name="singletonNamespace">singleton命名空间名称</param>
-    /// <returns></returns>
-    public static IServiceCollection RegisterServices(this IServiceCollection services, string dllName, string transientNamespace, string scopedNamespace, string singletonNamespace)
-    {
-        if (!string.IsNullOrEmpty(dllName))
+        /// <summary>
+        /// 注入服务
+        /// </summary>
+        /// <param name="services"></param>
+        /// <param name="dllName">注入项目名称</param>
+        /// <returns></returns>
+        public static IServiceCollection RegisterServices(this IServiceCollection services, string dllName)
         {
-            //获取dll
-            var types = Assembly.Load(new AssemblyName(dllName)).GetTypes().ToList();
-
-            //获取dll下所有类型
-            foreach (var item in types)
+            if (!string.IsNullOrEmpty(dllName))
             {
-                //类型必须是类 并且实现的接口大于0
-                if (item.IsClass && item.GetInterfaces().Length > 0)
+                //获取dll
+                var types = Assembly.Load(new AssemblyName(dllName)).GetTypes().ToList();
+                //获取dll下所有类型
+                foreach (var item in types)
                 {
-                    //注入
-                    foreach (var iSer in item.GetInterfaces())
+                    //类型必须是类  实现接口必须大于0
+                    if (item.IsClass && item.GetInterfaces().Length > 0)
                     {
-                        if (item.Namespace.Contains(transientNamespace))
+                        foreach (var iSer in item.GetInterfaces())
                         {
-                            services.AddTransient(iSer, item);
+                            DI(services, item, iSer);
                         }
-                        else if (item.Namespace.Contains(scopedNamespace))
-                        {
-                            services.AddScoped(iSer, item);
-                        }
-                        else if (item.Namespace.Contains(singletonNamespace))
-                        {
-                            services.AddSingleton(iSer, item);
-                        }
+                    }
+                    else if (item.IsClass && item.GetInterfaces().Length <= 0)
+                    {
+                        DI(services,item);
                     }
                 }
             }
+            return services;
         }
 
-        return services;
-    }
+        private static void DI(IServiceCollection services,Type item,Type interFace=null)
+        {
+            var attribute = (IdentifyingAttribute) item.GetCustomAttributes(typeof(IdentifyingAttribute), false)[0];
+            if (attribute != null)
+            {
+                switch (attribute.ServiceLifeTime.ToString())
+                {
+                    case "Transient" when interFace!=null:
+                        services.AddTransient(interFace, item);
+                        break;
+                    case "Scoped" when interFace != null:
+                        services.AddScoped(interFace,item);
+                        break;
+                    case "Singleton" when interFace != null:
+                        services.AddSingleton(interFace, item);
+                        break;
+                    case "Transient":
+                        services.AddTransient(item);
+                        break;
+                    case "Scoped":
+                        services.AddScoped(item);
+                        break;
+                    case "Singleton":
+                        services.AddSingleton(item);
+                        break;
+                }
+            }
+        }
 }
 
